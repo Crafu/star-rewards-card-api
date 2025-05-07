@@ -1,76 +1,40 @@
-// Route for Amazon product information
-app.get('/api/amazon-product', async (req, res) => {
+// Enable CORS
+const allowCors = fn => async (req, res) => {
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', 'https://crafu.github.io');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  return await fn(req, res);
+};
+
+const handler = (req, res) => {
   try {
     const productId = req.query.id;
     
     if (!productId) {
       return res.status(400).json({ error: 'Product ID is required' });
     }
-    // Log request details for debugging
-    console.log(`Processing request for product ID: ${productId}`);
-    console.log(`Request origin: ${req.headers.origin || 'Unknown'}`);
-    // Construct Amazon URL
-    const url = `https://www.amazon.com/dp/${productId}`;
+
+    // Return mock data for now
+    const mockProductData = {
+      title: `Amazon Product ${productId}`,
+      price: "$29.99",
+      image: `https://via.placeholder.com/150?text=Product+${productId}`,
+      url: `https://www.amazon.com/dp/${productId}`
+    };
     
-    // Make request to Amazon with appropriate headers
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'max-age=0',
-        'Referer': 'https://www.amazon.com/'
-      },
-      timeout: 10000  // 10 seconds timeout
-    });
-    // Log successful fetch
-    console.log('Successfully fetched Amazon page');
-    // Load HTML into cheerio
-    const $ = cheerio.load(response.data);
-    
-    // Extract product information
-    const title = $('#productTitle').text().trim();
-    
-    // Find price - Amazon has different price selectors
-    let price = $('.a-price .a-offscreen').first().text().trim();
-    if (!price) {
-      price = $('#priceblock_ourprice').text().trim();
-    }
-    if (!price) {
-      price = $('#priceblock_dealprice').text().trim();
-    }
-    
-    // Get the main product image
-    let image = $('#landingImage').attr('src');
-    if (!image) {
-      image = $('#imgBlkFront').attr('src');
-    }
-    if (!image) {
-      image = $('.a-dynamic-image').first().attr('src');
-    }
-    
-    // Log what we found
-    console.log(`Product info found - Title: ${title.substring(0, 30)}..., Price: ${price}`);
-    
-    // Return the product data
-    return res.json({
-      title,
-      price,
-      image,
-      url
-    });
+    return res.json(mockProductData);
     
   } catch (error) {
-    console.error('Error fetching product:', error.message);
-    
-    // Detailed error response
-    return res.status(500).json({ 
-      error: 'Failed to fetch product details',
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error('Error:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
+
+module.exports = allowCors(handler);
