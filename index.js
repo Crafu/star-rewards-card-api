@@ -7,11 +7,26 @@ const cheerio = require('cheerio');
 // Initialize Express app
 const app = express();
 
-// Enable CORS for all routes
-app.use(cors());
+// Add detailed CORS configuration
+app.use(cors({
+  origin: 'https://crafu.github.io',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 86400  // 24 hours in seconds
+}));
 
 // Parse JSON request bodies
 app.use(express.json());
+
+// Simple test endpoint to verify API connectivity
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API is working', 
+    timestamp: new Date().toISOString(),
+    origin: req.headers.origin || 'Unknown'
+  });
+});
 
 // Route for Amazon product information
 app.get('/api/amazon-product', async (req, res) => {
@@ -21,6 +36,10 @@ app.get('/api/amazon-product', async (req, res) => {
     if (!productId) {
       return res.status(400).json({ error: 'Product ID is required' });
     }
+
+    // Log request details for debugging
+    console.log(`Processing request for product ID: ${productId}`);
+    console.log(`Request origin: ${req.headers.origin || 'Unknown'}`);
 
     // Construct Amazon URL
     const url = `https://www.amazon.com/dp/${productId}`;
@@ -34,9 +53,14 @@ app.get('/api/amazon-product', async (req, res) => {
         'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'max-age=0'
-      }
+        'Cache-Control': 'max-age=0',
+        'Referer': 'https://www.amazon.com/'
+      },
+      timeout: 10000  // 10 seconds timeout
     });
+
+    // Log successful fetch
+    console.log('Successfully fetched Amazon page');
 
     // Load HTML into cheerio
     const $ = cheerio.load(response.data);
@@ -62,6 +86,9 @@ app.get('/api/amazon-product', async (req, res) => {
       image = $('.a-dynamic-image').first().attr('src');
     }
     
+    // Log what we found
+    console.log(`Product info found - Title: ${title.substring(0, 30)}..., Price: ${price}`);
+    
     // Return the product data
     return res.json({
       title,
@@ -71,17 +98,32 @@ app.get('/api/amazon-product', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error fetching product:', error);
+    console.error('Error fetching product:', error.message);
+    
+    // Detailed error response
     return res.status(500).json({ 
       error: 'Failed to fetch product details',
-      message: error.message
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
 
 // Add a simple status route
 app.get('/', (req, res) => {
-  res.send('Amazon Product API is running');
+  res.send('Amazon Product API is running - CORS Enabled for crafu.github.io');
+});
+
+// Handle OPTIONS requests explicitly
+app.options('*', cors());
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ 
+    error: 'Internal server error', 
+    message: err.message 
+  });
 });
 
 // Start the server
@@ -90,5 +132,5 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// Export the Express API
+// Export the Express API for Vercel
 module.exports = app;
