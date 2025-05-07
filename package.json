@@ -1,4 +1,15 @@
-"scripts": {
-  "start": "node index.js",
-  "dev": "node index.js"
+{
+  "name": "star-rewards-card-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
+  }
 }
