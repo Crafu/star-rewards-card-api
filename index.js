@@ -8,6 +8,13 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+// Add CORS headers to allow requests from GitHub Pages
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://crafu.github.io');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
 
 app.get('/', (req, res) => {
   res.send('Star Rewards Card API is running');
