@@ -1,8 +1,7 @@
 // Import required packages
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
-const cheerio = require('cheerio');
+const ProductAdvertisingAPIv1 = require('paapi5-nodejs-sdk');
 
 // Initialize Express app
 const app = express();
@@ -19,6 +18,9 @@ app.use(cors({
 // Parse JSON request bodies
 app.use(express.json());
 
+// Create PA API instance
+const api = new ProductAdvertisingAPIv1.DefaultApi();
+
 // Simple test endpoint to verify API connectivity
 app.get('/api/test', (req, res) => {
   res.json({ 
@@ -28,7 +30,7 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Route for Amazon product information
+// Route for Amazon product information using PA API
 app.get('/api/amazon-product', async (req, res) => {
   try {
     const productId = req.query.id;
@@ -41,61 +43,51 @@ app.get('/api/amazon-product', async (req, res) => {
     console.log(`Processing request for product ID: ${productId}`);
     console.log(`Request origin: ${req.headers.origin || 'Unknown'}`);
 
-    // Construct Amazon URL
-    const url = `https://www.amazon.com/dp/${productId}`;
+    // Set credentials
+    const credentials = new ProductAdvertisingAPIv1.PartnerType(
+      process.env.AMAZON_ACCESS_KEY,
+      process.env.AMAZON_SECRET_KEY,
+      process.env.AMAZON_ASSOCIATE_TAG
+    );
+
+    // Create GetItemsRequest
+    const requestParameters = {
+      ItemIds: [productId],
+      PartnerTag: process.env.AMAZON_ASSOCIATE_TAG,
+      PartnerType: 'Associates',
+      Marketplace: 'www.amazon.com',
+      Resources: [
+        'Images.Primary.Large',
+        'ItemInfo.Title',
+        'Offers.Listings.Price',
+        'ItemInfo.ByLineInfo'
+      ]
+    };
+
+    // Make the API call
+    const data = await api.getItems(requestParameters, credentials);
     
-    // Make request to Amazon with appropriate headers
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'max-age=0',
-        'Referer': 'https://www.amazon.com/'
-      },
-      timeout: 10000  // 10 seconds timeout
-    });
-
     // Log successful fetch
-    console.log('Successfully fetched Amazon page');
-
-    // Load HTML into cheerio
-    const $ = cheerio.load(response.data);
+    console.log('Successfully fetched product from PA API');
     
     // Extract product information
-    const title = $('#productTitle').text().trim();
-    
-    // Find price - Amazon has different price selectors
-    let price = $('.a-price .a-offscreen').first().text().trim();
-    if (!price) {
-      price = $('#priceblock_ourprice').text().trim();
+    if (data.ItemsResult && data.ItemsResult.Items && data.ItemsResult.Items.length > 0) {
+      const item = data.ItemsResult.Items[0];
+      
+      const productData = {
+        title: item.ItemInfo?.Title?.DisplayValue || 'Unknown Title',
+        price: item.Offers?.Listings?.[0]?.Price?.DisplayAmount || 'Price unavailable',
+        image: item.Images?.Primary?.Large?.URL || '',
+        url: item.DetailPageURL || `https://www.amazon.com/dp/${productId}`
+      };
+      
+      // Log what we found
+      console.log(`Product info found - Title: ${productData.title.substring(0, 30)}..., Price: ${productData.price}`);
+      
+      return res.json(productData);
+    } else {
+      return res.status(404).json({ error: 'Product not found' });
     }
-    if (!price) {
-      price = $('#priceblock_dealprice').text().trim();
-    }
-    
-    // Get the main product image
-    let image = $('#landingImage').attr('src');
-    if (!image) {
-      image = $('#imgBlkFront').attr('src');
-    }
-    if (!image) {
-      image = $('.a-dynamic-image').first().attr('src');
-    }
-    
-    // Log what we found
-    console.log(`Product info found - Title: ${title.substring(0, 30)}..., Price: ${price}`);
-    
-    // Return the product data
-    return res.json({
-      title,
-      price,
-      image,
-      url
-    });
     
   } catch (error) {
     console.error('Error fetching product:', error.message);
@@ -111,7 +103,7 @@ app.get('/api/amazon-product', async (req, res) => {
 
 // Add a simple status route
 app.get('/', (req, res) => {
-  res.send('Amazon Product API is running - CORS Enabled for crafu.github.io');
+  res.send('Amazon Product API is running - Using Product Advertising API');
 });
 
 // Handle OPTIONS requests explicitly
@@ -126,11 +118,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start the server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Start the server (for local development)
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
 // Export the Express API for Vercel
 module.exports = app;
