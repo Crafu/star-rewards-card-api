@@ -1,9 +1,23 @@
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
+const cheerio = require('cheerio');
+
 const app = express();
 
-// Enable CORS for all routes
+// This is the important part - enable CORS
 app.use(cors());
+
+// Your API routes
+app.get('/api/amazon-product', async (req, res) => {
+  // Your existing code here
+});
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 app.use(express.json());
 // Add CORS headers to allow requests from GitHub Pages
 app.use((req, res, next) => {
